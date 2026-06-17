@@ -1,0 +1,70 @@
+name: Build & Distribute Jarvis App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-distribute:
+    name: Build & Distribute
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Required to create/update releases and upload assets
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Build Release App Bundle (AAB)
+        run: flutter build appbundle --release
+
+      # 1. Distribute via GitHub Releases
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Jarvis Release v1.0.${{ github.run_number }}
+          body: |
+            Automated release from push to main branch.
+            - Run Number: #${{ github.run_number }}
+            - Commit: ${{ github.sha }}
+          draft: false
+          prerelease: false
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Distribute via Firebase App Distribution (Optional)
+      # To enable this, uncomment the section below and add these Secrets in your GitHub Repo Settings:
+      # - FIREBASE_APP_ID (Found in Firebase console under project settings)
+      # - FIREBASE_CLI_TOKEN (Generate using `firebase login:ci`)
+      #
+      # - name: Distribute to Firebase App Distribution
+      #   uses: wzieba/Firebase-Distribution-Github-Action@v1
+      #   with:
+      #     appId: ${{ secrets.FIREBASE_APP_ID }}
+      #     token: ${{ secrets.FIREBASE_CLI_TOKEN }}
+      #     groups: testers
+      #     file: build/app/outputs/flutter-apk/app-release.apk
